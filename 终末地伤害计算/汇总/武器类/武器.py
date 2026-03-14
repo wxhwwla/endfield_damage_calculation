@@ -86,14 +86,15 @@ class Weapon:
         # 由于 JSON 要求键必须为字符串，将等级字典的键从整数 level 转换为字符串 str(level)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "Weapon":        
+    def from_dict(cls, data: Dict) -> "Weapon":
+    # 类方法，根据从 JSON 加载的字典重建 Weapon 对象
+    # 先调用构造函数创建实例（传入名称和固定属性），然后遍历 levels 中的每个键值对
+    # 将字符串键转回整数，并调用 add_level 添加等级数据
         w = cls(data["name"], data["fixed"])
         for level_str, attrs in data["levels"].items():
             w.add_level(int(level_str), attrs)
         return w
-    # 类方法，根据从 JSON 加载的字典重建 Weapon 对象
-    # 先调用构造函数创建实例（传入名称和固定属性），然后遍历 levels 中的每个键值对，将字符串键转回整数，并调用 add_level 添加等级数据
-
+    
     def __repr__(self):
     #定义一个查询的函数，可以查询放进去的武器
         return f"Weapon(name={self.name!r}, fixed={self.fixed_attributes}, levels={list(self.levels.keys())})"
@@ -104,9 +105,10 @@ class WeaponLibrary:
 #武器库类，用于管理武器
 
     def __init__(self):
+    # 初始化方法，创建一个空列表 self.weapons，用于存储所有武器对象。
+    # 类型注解 List[Weapon] 表明这个列表中的元素都是 Weapon 实例。
+
         self.weapons:list[Weapon] = []
-        # 初始化方法，创建一个空列表 self.weapons，用于存储所有武器对象。
-        # 类型注解 List[Weapon] 表明这个列表中的元素都是 Weapon 实例。
 
     def add_weapon(self,weapon:Weapon):
     # 定义一个方法add_weapon，要求传入的参数为一个Waepon的对象
@@ -116,72 +118,97 @@ class WeaponLibrary:
         # 将该武器添加到上面那个初始化方法的列表中
 
     def find_weapon_by_name(self, name: str) -> Optional[Weapon]:
+    # 根据名称查找武器原型（假设名称唯一）
+    # name: str为外部输入，期望查找的武器名称
         for w in self.weapons:
             if w.name == name:
                 return w
         return None
-    # 根据名称查找武器原型（假设名称唯一）
 
     def filter_weapons(self, star: Optional[int] = None, weapon_type: Optional[str] = None) -> List[Weapon]:
     # 定义一个筛选函数，筛选目标为星级和武器类型，返回值为一个武器的列表
         result = []
         for w in self.weapons:
-            # 检查星级（如果提供了 star 参数）
-            # 实际上必须提供，因为这是后台给的
             if star is not None and w.get_attribute("星级") != star:
                 continue
-            # 检查武器类型（如果提供了 weapon_type 参数）
-            # w.get_attribute("星级") 实际调用的是 get_fixed_attribute，因为未提供 level 参数
-            # 同上
+            # 筛选出输入的星级（如果提供了 star 参数）
+            # 如果没有就跳过
+
             if weapon_type is not None and w.get_attribute("类型") != weapon_type:
                 continue
+            # 筛选武器类型（如果提供了 weapon_type 参数）
+            # 如果没有就跳过
+            # w.get_attribute("星级") 实际调用的是 get_fixed_attribute
+            # 因为未提供 level 参数（好吧，我说实话不太看得
+
             result.append(w)
             # 两个条件都为 None 时返回所有武器
             # 返回符合条件的武器列表
+
         return result
+    
     def to_dict_list(self) -> List[Dict]:
-        return [w.to_dict() for w in self.weapons]
     # 将整个武器库转换为可 JSON 序列化的列表
     # 将武器库中的所有武器依次调用 to_dict()，生成一个字典列表，便于整体保存
+        return [w.to_dict() for w in self.weapons]
 
     @classmethod
     def from_dict_list(cls, data: List[Dict]) -> "WeaponLibrary":
+    # 从列表恢复武器库
+    # 从字典列表重建 WeaponLibrary 对象 
+    # 遍历列表，每个元素通过 Weapon.from_dict 转换为武器对象，然后添加到新创建的库中
         lib = cls()
         for item in data:
             lib.add_weapon(Weapon.from_dict(item))
         return lib
-    # 从列表恢复武器库
-    # 从字典列表重建 WeaponLibrary 对象 
-    # 遍历列表，每个元素通过 Weapon.from_dict 转换为武器对象，然后添加到新创建的库中
 
 
 def save_library(lib: WeaponLibrary, filename: str = None):
+# 把整个武器库 lib 批量保存成 JSON 文件，持久化存盘
+
     if filename is None:
         filename = os.path.join(SCRIPT_DIR, "weapons.json")
+    # 如果调用时没有指定文件名，就用默认的文件路径
+    # SCRIPT_DIR 通常是当前脚本的目录，也就是保存到你工程的指定文件夹下
+    # 如果 filename 为 None，则默认保存到脚本所在目录下的 weapons.json
+
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(lib.to_dict_list(), f, indent=2, ensure_ascii=False)
-    # 将武器库保存到 JSON 文件。
-    # 如果 filename 为 None，则默认保存到脚本所在目录下的 weapons.json
-    # indent=2 使文件格式化易读，ensure_ascii=False 允许中文正常显示
+    # 以写模式打开目标 json 文件，采用 utf-8 编码保证中文不会乱码
+    # lib.to_dict_list() 获得当前库的所有武器的字典列表
+    # （通常就是 [weapon.to_dict() for weapon in lib.weapons]）
+    # json.dump 负责将这个数据结构保存为可读性好的带缩进（indent=2）的 JSON 文件
+    # ensure_ascii=False 确保中文不会被转成 Unicode 转义序列，方便可读
 
 
 def load_library(filename: str = None) -> WeaponLibrary:
+# 从一个 JSON 文件中加载（反序列化）所有武器的数据
+# 恢复成一个 WeaponLibrary 对象。这通常用于程序启动或数据还原
+
     if filename is None:
         filename = os.path.join(SCRIPT_DIR, "weapons.json")
+    # 如果调用时没有给文件名，就用默认存储位置（通常和 save_library 保持一致）
+
     try:
         with open(filename, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # 按 utf-8 编码打开文件
+        # json.load 反序列化为 Python 列表（每个元素是一个武器的字典表示）
+
         return WeaponLibrary.from_dict_list(data)
+        # 调用 WeaponLibrary 的批量工厂方法（上文解释过）
+        # 把字典列表还原成真正的 WeaponLibrary 对象，包含所有武器实例
+
     except FileNotFoundError:
-        return WeaponLibrary()       
-    # 从 JSON 文件加载武器库，通过 from_dict_list 重建武器库
-    # 如果 filename 为 None，则默认从脚本所在目录下的 weapons.json 加载
-    # 如果文件不存在，捕获 FileNotFoundError 并返回一个空武器库，避免程序崩溃
+        return WeaponLibrary()
+        # 如果目标 json 文件不存在，说明要么是第一次运行，要么没保存过库
+        # 此时不给出异常，而是直接返回一个空的武器库，保证主程序可正常运行（即降级为“空库启动”）
 
 
 if __name__ == "__main__":
     lib = WeaponLibrary()
     # 变成实例
+
     塔尔11 = Weapon("塔尔11", {"星级":3, "类型":"单手剑",})
     塔尔11.add_level(1,  {"等级":1, "基础攻击力":29, "主能力+":10, "附加攻击力+":12})
     塔尔11.add_level(20,  {"等级":20, "基础攻击力":83, "主能力+":10, "附加攻击力+":12})
@@ -190,7 +217,9 @@ if __name__ == "__main__":
     塔尔11.add_level(80,  {"等级":80, "基础攻击力":254, "主能力+":34, "附加攻击力+":12})
     塔尔11.add_level(90,  {"等级":90, "基础攻击力":283, "主能力+":42, "附加攻击力+":12})
     # 添加等级数据
+
     lib.add_weapon(塔尔11)
+    # 把武器放入角色库中，为批量管理、多存取做准备
 
     浪潮 = Weapon("浪潮", {"星级":4, "类型":"单手剑",})
     浪潮.add_level(1,  {"等级":1, "基础攻击力":34, "智识+":12, "攻击力+":3,
@@ -209,8 +238,11 @@ if __name__ == "__main__":
 
     save_library(lib)
     print(f"武器库已保存到 {os.path.join(SCRIPT_DIR, 'weapons.json')}")
+    # 用先前的save_library把整个库对象序列化成JSON，存入硬盘
+    # 路径用默认目录和characters.json文件名
 
     loaded_lib = load_library()
+    # 通过load_library()将武器库文件读回内存，确保保存/加载流程可用
 
     print("从文件加载的武器库：")
     for w in loaded_lib.weapons:
@@ -218,6 +250,7 @@ if __name__ == "__main__":
         for lv in w.get_levels():
             atk = w.get_level_attribute(lv, "基础攻击力", "?")
             print(f"  等级 {lv}: 基础攻击力 {atk}")
-
+    # 打印武器对象（通常会看到名称等基本信息）。
+    # 遍历各等级的数据，输出每一等级的攻击力。
 
 

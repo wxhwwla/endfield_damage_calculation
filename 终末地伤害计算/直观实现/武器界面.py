@@ -141,6 +141,10 @@ class WeaponSelectionFrame(ttk.Frame):
         rank_btn = ttk.Button(btn_frame, text="遍历所有武器排名", command=self.on_calc_rank)
         rank_btn.pack(side=tk.LEFT, padx=5)
 
+        export_btn = ttk.Button(btn_frame, text="导出排名为CSV", command=self._on_export_rank_csv)
+        export_btn.pack(side=tk.LEFT, padx=5)
+        # 新增：导出CSV按钮
+
     # ---------- 内部方法 ----------
     def _on_temp_effect_toggle(self):
         """根据复选框状态启用或禁用次数输入框"""
@@ -276,5 +280,11 @@ class WeaponSelectionFrame(ttk.Frame):
                 self.crit_rate_var.get(),
                 self.crit_dmg_var.get())
     
+    def set_export_csv_callback(self, callback):
+        self.export_csv_callback = callback
 
-    
+    def _on_export_rank_csv(self):
+        if hasattr(self, 'export_csv_callback') and self.export_csv_callback:
+            self.export_csv_callback()
+
+

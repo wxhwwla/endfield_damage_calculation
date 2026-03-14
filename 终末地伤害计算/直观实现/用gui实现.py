@@ -4,7 +4,10 @@
 
 import tkinter as tk
 from tkinter import ttk
+import tkinter.filedialog as fd
+import tkinter.messagebox as mb
 from typing import List, Optional, Dict
+import csv
 import sys
 import os
 
@@ -265,6 +268,8 @@ class DamageCalculatorApp:
         # 设置返回按钮的回调
         self.weapon_frame.set_back_callback(lambda: self.show_frame(self.skill_frame))
 
+        self.weapon_frame.set_export_csv_callback(self.save_rank_csv)
+        
         # 创建结果显示文本框，并放置在武器界面下方
         result_frame = ttk.LabelFrame(self.weapon_frame, text="计算结果", padding=10)
         result_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -334,6 +339,46 @@ class DamageCalculatorApp:
         )
         self.result_text.insert(tk.END, result_str + "\n")
 
+    def save_rank_csv(self):
+        if not self.selected_character:
+            self.result_text.insert(tk.END, "请先选择角色！\n")
+            return
+
+        weapon_level = self.weapon_frame.get_weapon_level()
+        use_temp, temp_times = self.weapon_frame.get_temp_effect_state()
+        atk_percent, dmg_percent, crit_rate, crit_dmg = self.weapon_frame.get_other_multipliers()
+        times_param = temp_times if use_temp else None
+
+        # 获取结构化数据
+        from 遍历 import traverse_weapons_csv_data
+        header, rows = traverse_weapons_csv_data(
+            character=self.selected_character,
+            weapon_lib=self.weapon_lib,
+            skill=self.selected_skill,
+            skill_level=self.selected_skill_level,
+            character_level=self.selected_character_level,
+            atk_percent=atk_percent,
+            dmg_percent=dmg_percent,
+            crit_rate=crit_rate,
+            crit_dmg=crit_dmg,
+            weapon_level=weapon_level,
+            temp_times=times_param
+        )
+
+        file_path = fd.asksaveasfilename(defaultextension=".csv",
+                                        filetypes=[("CSV 文件", "*.csv"), ("所有文件", "*.*")],
+                                        title="导出排名为CSV")
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "w", encoding="utf-8", newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(rows)
+            mb.showinfo("成功", "保存成功，请用Excel打开（一般来说直接双击该文件即可）")
+        except Exception as e:
+            mb.showerror("失败", f"保存失败: {e}")
 
 if __name__ == "__main__":
     app = DamageCalculatorApp()

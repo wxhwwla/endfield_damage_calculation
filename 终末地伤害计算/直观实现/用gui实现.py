@@ -314,15 +314,19 @@ class DamageCalculatorApp:
         self.result_text.insert(tk.END, result_str + "\n")
 
     def calc_rank(self):
-        """武器排名计算回调，由武器界面的按钮触发"""
         if not self.selected_character:
             self.result_text.insert(tk.END, "请先选择角色！\n")
             return
 
         weapon_level = self.weapon_frame.get_weapon_level()
+        # 关键点：这里不要限制“必须选中某个武器”
         use_temp, temp_times = self.weapon_frame.get_temp_effect_state()
         atk_percent, dmg_percent, crit_rate, crit_dmg = self.weapon_frame.get_other_multipliers()
 
+        # 根据是否启用临时效果确定遍历方式
+        times_param = temp_times if use_temp else None
+
+        # 这里直接遍历所有武器
         result_str = calculate_rank(
             character=self.selected_character,
             weapon_lib=self.weapon_lib,
@@ -337,6 +341,8 @@ class DamageCalculatorApp:
             use_temp_effect=use_temp,
             temp_effect_times=temp_times
         )
+        if not result_str:
+            result_str = "没有得到任何遍历结果。"
         self.result_text.insert(tk.END, result_str + "\n")
 
     def save_rank_csv(self):
@@ -384,4 +390,3 @@ if __name__ == "__main__":
     app = DamageCalculatorApp()
 
 
-    

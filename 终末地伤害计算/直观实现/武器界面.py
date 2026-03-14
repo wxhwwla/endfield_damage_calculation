@@ -196,6 +196,22 @@ class WeaponSelectionFrame(ttk.Frame):
         self.temp_effect_times_var.set(0)
         self._on_temp_effect_toggle()
 
+        # ------- 关键部分：收集所有可用等级 -------
+        all_levels_set = set()
+        for w in self.weapon_lib.weapons:
+            if w.get_fixed_attribute("类型") == weapon_type:
+                for lv in w.get_levels():
+                    all_levels_set.add(lv)
+
+        all_levels = sorted(list(all_levels_set))
+        if all_levels:
+            level_strs = [str(lv) for lv in all_levels]
+            self.weapon_level_combo['values'] = level_strs
+            self.weapon_level_var.set(all_levels[0])    # 默认为最小等级(1)
+        else:
+            self.weapon_level_combo['values'] = []
+            self.weapon_level_var.set('')
+
         # 加载符合条件的武器
         for w in self.weapon_lib.weapons:
             if w.get_fixed_attribute("类型") == weapon_type:
@@ -263,9 +279,9 @@ class WeaponSelectionFrame(ttk.Frame):
     def get_weapon_level(self):
         """返回当前选中的武器等级，若未选择则返回0"""
         try:
-            return self.weapon_level_var.get()
+            return int(self.weapon_level_var.get())
         except:
-            return 0
+            return 1
 
     def get_temp_effect_state(self) -> Tuple[bool, int]:
         """返回临时效果启用状态和次数 (use_temp, temp_times)"""

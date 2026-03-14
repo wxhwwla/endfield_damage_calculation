@@ -52,7 +52,8 @@ def traverse_weapons(character, weapon_lib, skill, skill_level, character_level,
                     atk_percent, dmg_percent, crit_rate, crit_dmg,
                     use_temp_effect=use_temp, temp_effect_times=times
                 )
-            except ValueError:
+            except ValueError as e:
+                print(f"武器 {w.name} times={times} 计算出错：", e)
                 # 计算失败则跳过该条目
                 continue
             non_crit = vals['non_crit']
@@ -77,6 +78,10 @@ def traverse_weapons(character, weapon_lib, skill, skill_level, character_level,
     output = ""
     for row in rows:
         output += "  ".join(row[i].ljust(col_widths[i]) for i in range(len(header))) + "\n"
+    
+    if not results:
+        return "没有符合条件的武器，或所有计算都失败，请检查数据和筛选条件。"
+    return output
 
 
 def traverse_weapons_csv_data(character, weapon_lib, skill, skill_level, character_level,

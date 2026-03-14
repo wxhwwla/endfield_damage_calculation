@@ -1,15 +1,22 @@
 """
 GUI主框架程序，负责主窗口、页面切换和主流程控制。
 """
+import sys
+import os
+# 将项目根目录（终末地伤害计算）添加到模块搜索路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import csv
 import tkinter as tk
 from tkinter import ttk
-# 按需导入模型和计算
+import tkinter.filedialog as fd
+import tkinter.messagebox as mb
 from model.character import load_character_library
 from model.weapon import load_weapon_library
 from gui.weapon_frame import WeaponSelectionFrame
 from calc.damage import calculate_single_damage
-from calc.traverse import calculate_rank, save_rank_csv
+from calc.traverse import calculate_rank, traverse_weapons_csv_data
+
 
 class DamageCalculatorApp:
     """
@@ -26,12 +33,16 @@ class DamageCalculatorApp:
         self.selected_character_level = None
         self.selected_skill = None
         self.selected_skill_level = 1
+        self.char_map = {}
 
         # 创建主窗口
         self.window = tk.Tk()
         self.window.title("伤害计算器")
         self.window.geometry("1080x960")
         self.window.state('zoomed')
+
+        # 设置全局字体
+        self._setup_fonts()
 
         # 主容器
         self.main_container = ttk.Frame(self.window)
@@ -55,6 +66,21 @@ class DamageCalculatorApp:
         for child in self.main_container.winfo_children():
             child.pack_forget()
         frame.pack(fill=tk.BOTH, expand=True)
+
+    def _setup_fonts(self):
+        """统一设置所有控件的字体"""
+        # 定义您想要的字体名称和大小（例如微软雅黑）
+        font_family = "微软雅黑"  # Windows 常用，macOS 可用 "苹方" 或 "Helvetica"
+        font_size = 12
+
+        # 设置 ttk 控件的默认样式
+        style = ttk.Style()
+        style.theme_use('vista')  # 可选主题
+        style.configure('.', font=(font_family, font_size))
+
+        # 对于非 ttk 控件（如 Text），可以单独设置默认字体
+        self.default_font = (font_family, font_size)
+        self.window.option_add('*Font', self.default_font)  # 对所有子控件生效
 
     def create_character_select_frame(self):
         self.character_frame = ttk.Frame(self.main_container)
@@ -154,7 +180,7 @@ class DamageCalculatorApp:
 
         info_frame = ttk.Frame(self.skill_frame)
         info_frame.pack(fill=tk.X, padx=10, pady=10)
-        self.selected_char_label = ttk.Label(info_frame, text="未选择角色", font=("仿宋", 12))
+        self.selected_char_label = ttk.Label(info_frame, text="未选择角色", font=("微软雅黑", 12))
         self.selected_char_label.pack(side=tk.LEFT, padx=10)
 
         skill_choice_frame = ttk.LabelFrame(self.skill_frame, text="选择技能", padding=10)
@@ -201,7 +227,7 @@ class DamageCalculatorApp:
     def update_skill_select_frame(self):
         if self.selected_character:
             self.selected_char_label.config(text=f"当前角色：{self.selected_character.name}")
-                    # 更新角色等级下拉框
+            # 更新角色等级下拉框
         levels = self.selected_character.get_levels()
         if levels:
             level_strs = [str(lv) for lv in levels]
@@ -210,6 +236,7 @@ class DamageCalculatorApp:
             max_lv = max(levels)
             self.char_level_var.set(max_lv)
             self.selected_character_level = max_lv
+            self.update_multiplier_display()
         else:
             self.char_level_combo['values'] = []
             self.char_level_var.set('')
@@ -254,41 +281,30 @@ class DamageCalculatorApp:
         )
         # 设置返回按钮的回调
         self.weapon_frame.set_back_callback(lambda: self.show_frame(self.skill_frame))
-
         self.weapon_frame.set_export_csv_callback(self.save_rank_csv)
-        
-        # 创建结果显示文本框，并放置在武器界面下方
-        result_frame = ttk.LabelFrame(self.weapon_frame, text="计算结果", padding=10)
-        result_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        self.result_text = tk.Text(result_frame, height=10, wrap=tk.WORD)
-        scroll_result = ttk.Scrollbar(result_frame, orient=tk.VERTICAL, command=self.result_text.yview)
-        self.result_text.configure(yscrollcommand=scroll_result.set)
-        self.result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll_result.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # 将结果文本框的引用保存到武器界面（可选，但回调中直接使用 self.result_text）
-        self.weapon_frame.set_result_text_widget(self.result_text)
+        # 注意：不再创建 result_frame，因为武器界面内部已经创建了
 
     def calc_single_damage(self):
-        """单次伤害计算回调，由武器界面的按钮触发"""
-        # 从武器界面获取数据
+        weapon_level = self.weapon_frame.get_weapon_level()
+        if weapon_level is None:
+            self.weapon_frame.result_text.insert(tk.END, "请先选择武器等级！\n")
+            self.weapon_frame.result_text.see(tk.END)
+            return
         weapon = self.weapon_frame.get_selected_weapon()
         if not self.selected_character or not weapon:
-            self.result_text.insert(tk.END, "请先选择角色和武器！\n")
+            self.weapon_frame.result_text.insert(tk.END, "请先选择角色和武器！\n")
+            self.weapon_frame.result_text.see(tk.END)
             return
 
-        weapon_level = self.weapon_frame.get_weapon_level()
         use_temp, temp_times = self.weapon_frame.get_temp_effect_state()
         atk_percent, dmg_percent, crit_rate, crit_dmg = self.weapon_frame.get_other_multipliers()
 
-        # 调用计算模块
         result_str = calculate_single_damage(
             character=self.selected_character,
             weapon=weapon,
             skill=self.selected_skill,
             skill_level=self.selected_skill_level,
-            character_level=self.selected_character_level,  # 新增
+            character_level=self.selected_character_level,
             weapon_level=weapon_level,
             atk_percent=atk_percent,
             dmg_percent=dmg_percent,
@@ -297,22 +313,25 @@ class DamageCalculatorApp:
             use_temp_effect=use_temp,
             temp_effect_times=temp_times
         )
-        self.result_text.insert(tk.END, result_str + "\n")
+        # 插入分隔线
+        self.weapon_frame.result_text.insert(tk.END, "\n" + "="*50 + "\n")
+        self.weapon_frame.result_text.insert(tk.END, result_str + "\n")
+        self.weapon_frame.result_text.see(tk.END)
 
     def calc_rank(self):
+        weapon_level = self.weapon_frame.get_weapon_level()
+        if weapon_level is None:
+            self.weapon_frame.result_text.insert(tk.END, "请先选择武器等级！\n")
+            self.weapon_frame.result_text.see(tk.END)
+            return
         if not self.selected_character:
-            self.result_text.insert(tk.END, "请先选择角色！\n")
+            self.weapon_frame.result_text.insert(tk.END, "请先选择角色！\n")
+            self.weapon_frame.result_text.see(tk.END)
             return
 
-        weapon_level = self.weapon_frame.get_weapon_level()
-        # 关键点：这里不要限制“必须选中某个武器”
         use_temp, temp_times = self.weapon_frame.get_temp_effect_state()
         atk_percent, dmg_percent, crit_rate, crit_dmg = self.weapon_frame.get_other_multipliers()
 
-        # 根据是否启用临时效果确定遍历方式
-        times_param = temp_times if use_temp else None
-
-        # 这里直接遍历所有武器
         result_str = calculate_rank(
             character=self.selected_character,
             weapon_lib=self.weapon_lib,
@@ -329,11 +348,15 @@ class DamageCalculatorApp:
         )
         if not result_str:
             result_str = "没有得到任何遍历结果。"
-        self.result_text.insert(tk.END, result_str + "\n")
+        # 插入分隔线
+        self.weapon_frame.result_text.insert(tk.END, "\n" + "="*50 + "\n")
+        self.weapon_frame.result_text.insert(tk.END, result_str + "\n")
+        self.weapon_frame.result_text.see(tk.END)
 
     def save_rank_csv(self):
         if not self.selected_character:
-            self.result_text.insert(tk.END, "请先选择角色！\n")
+            self.weapon_frame.result_text.insert(tk.END, "请先选择角色！\n")
+            self.weapon_frame.result_text.see(tk.END)
             return
 
         weapon_level = self.weapon_frame.get_weapon_level()
@@ -342,7 +365,6 @@ class DamageCalculatorApp:
         times_param = temp_times if use_temp else None
 
         # 获取结构化数据
-        from 遍历 import traverse_weapons_csv_data
         header, rows = traverse_weapons_csv_data(
             character=self.selected_character,
             weapon_lib=self.weapon_lib,
@@ -368,9 +390,15 @@ class DamageCalculatorApp:
                 writer = csv.writer(f)
                 writer.writerow(header)
                 writer.writerows(rows)
+            # 在结果框显示保存成功信息
+            self.weapon_frame.result_text.insert(tk.END, "\n" + "="*50 + "\n")
+            self.weapon_frame.result_text.insert(tk.END, f"排名已成功导出到：{file_path}\n")
+            self.weapon_frame.result_text.see(tk.END)
             mb.showinfo("成功", "保存成功，请用Excel打开（一般来说直接双击该文件即可）")
         except Exception as e:
             mb.showerror("失败", f"保存失败: {e}")
+            # 也可以在结果框显示错误
+            self.weapon_frame.result_text.insert(tk.END, f"导出失败：{e}\n")
+            self.weapon_frame.result_text.see(tk.END)
 
 
-        
